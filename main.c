@@ -154,6 +154,7 @@ int main(int argc, char* argv[]) {
             Record* Array = (Record*)malloc(records_per_child* sizeof(Record));
             int Merger_Records=0;
             int k ;
+            int bytes_read;
             for( k=0; k < num_grandchildren; k++){ 
                 //Because records_per_grandchild has special cases, update when needed, which is when were at the last merger, or the last sorter
                 if ( i == num_children-1) {
@@ -163,7 +164,25 @@ int main(int argc, char* argv[]) {
                     records_per_grandchild += records_per_child%num_grandchildren;
                 }
                 int count=0;
-                while( Merger_Records< records_per_child &&(count++ < records_per_grandchild) && (read(pipes_child_grandchild[i][k][READ], &Array[Merger_Records++], sizeof(Record))==sizeof(Record)));
+                while(Merger_Records < records_per_child && (count++ < records_per_grandchild)) {
+                    char *record_ptr = (char *)&Array[Merger_Records];
+                    int total_bytes_read = 0;
+                    while(total_bytes_read < sizeof(Record)) {
+                        bytes_read = read(pipes_child_grandchild[i][k][READ], record_ptr + total_bytes_read, sizeof(Record) - total_bytes_read);
+                        if (bytes_read <= 0) { // Check for read error or end of data
+                            write(STDERR_FILENO , message10 , strlen(message10));
+                            break;
+                        }
+                        total_bytes_read += bytes_read;
+                    }
+                    if (total_bytes_read == sizeof(Record)) {
+                        Merger_Records++;
+                    } else {
+                        write(STDERR_FILENO , message10 , strlen(message10));
+                        break;
+                    }
+                }
+
                 close(pipes_child_grandchild[i][k][READ]);
             }
             
@@ -214,10 +233,27 @@ int main(int argc, char* argv[]) {
             records_per_child += num_records % num_children;
         }
         int count=0, b;
-        while( Root_Records<num_records && count<records_per_child && (b=(read( pipe_parent_child[i][READ], &Array[Root_Records] , sizeof(Record)))==sizeof(Record))) {
-            Root_Records++;
-            count++;
+        while(Root_Records < num_records && count < records_per_child) {
+            char *record_ptr = (char *)&Array[Root_Records];
+            int total_bytes_read = 0;
+            while(total_bytes_read < sizeof(Record)) {
+                int bytes_read = read(pipe_parent_child[i][READ], record_ptr + total_bytes_read, sizeof(Record) - total_bytes_read);
+                if (bytes_read < 0) { // Check for read error or end of data
+                    write(STDERR_FILENO, message10, strlen(message10));
+                    break;
+                }
+                total_bytes_read += bytes_read;
+            }
+            if (total_bytes_read == sizeof(Record)) {
+                Root_Records++; 
+                count++;
+            } 
+            else {
+                write(STDERR_FILENO, message10, strlen(message10));
+                break;
+            }
         }
+
     }
     int records_per_segment = num_records / num_children;
     int currentMergedSize = records_per_segment; // Initial size of the merged array
@@ -242,7 +278,7 @@ int main(int argc, char* argv[]) {
     }
     printf("SIGUSR1 count: %d\n", signal1);
     printf("SIGUSR2 count: %d\n", signal2);
-    //Before exiting, free the allocated space for the Array and the pipes
+    // Before exiting, free the allocated space for the Array and the pipes
     for (int i = 0; i < num_children; i++) {
         for (int j = 0; j < num_children - i; j++) {
             free(pipes_child_grandchild[i][j]);
