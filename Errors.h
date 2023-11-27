@@ -1,0 +1,11 @@
+#include "lib.h" 
+
+#define message1 "Error couldnt open file\n"
+#define message2 "Error couldnt close file\n"
+#define message3 "Correct syntax is: ./mysort -i DataFile -k NumofChildren -e1 sorting1 -e2 sorting2\n"
+#define message4 "Error while using seek\n"
+#define message5 "Error couldn't create child with fork\n"
+#define message6 "Correct syntax is: ./quicksort DataFile start end fd1 \n"
+#define message7 "Correct syntax is: ./bubblesort DataFile start end fd1 \n"
+#define message8 "Error couldnt create pipe\n"
+#define message9 "Error malloc failed\n"
